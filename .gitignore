@@ -1,0 +1,27 @@
+# Compiled binaries
+pack-calculator
+*.exe
+*.exe~
+*.out
+
+# Test coverage
+coverage.out
+coverage.html
+
+# Environment files
+.env
+.env.*
+
+# IDE / editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go toolchain artifacts
+/vendor/
