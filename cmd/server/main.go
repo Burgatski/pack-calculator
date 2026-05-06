@@ -15,6 +15,7 @@ import (
 	"github.com/Burgatski/pack-calculator/internal/storage"
 )
 
+//go:embed web
 var webFiles embed.FS
 
 func main() {
@@ -29,9 +30,10 @@ func main() {
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 
+	// Strip the "web/" prefix so the browser hits "/" not "/web/index.html".
 	webRoot, err := fs.Sub(webFiles, "web")
 	if err != nil {
-		slog.Error("failed to create web sub-FS", "error", err)
+		slog.Error("failed to mount web assets", "error", err)
 		os.Exit(1)
 	}
 	mux.Handle("GET /", http.FileServer(http.FS(webRoot)))
@@ -44,6 +46,7 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	// Wait for SIGINT/SIGTERM, then give in-flight requests 30 s to finish.
 	shutdownDone := make(chan struct{})
 	go func() {
 		quit := make(chan os.Signal, 1)

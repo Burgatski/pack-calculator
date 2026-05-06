@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pack Calculator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .page { max-width: 720px; margin: 0 auto; }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+      color: #1a1a2e;
+    }
+    .subtitle { color: #666; margin-bottom: 2rem; font-size: 0.95rem; }
+
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .card h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; color: #333; }
+
+    #sizeList { list-style: none; }
+    #sizeList li {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    input[type="number"] {
+      padding: 0.45rem 0.75rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      width: 130px;
+      transition: border-color .15s;
+    }
+    input[type="number"]:focus { outline: none; border-color: #3b82f6; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.45rem 1rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn:hover { opacity: .88; }
+
+    .btn-primary  { background: #3b82f6; color: #fff; }
+    .btn-success  { background: #16a34a; color: #fff; }
+    .btn-ghost    { background: transparent; color: #6b7280; border: 1px solid #d1d5db; }
+    .btn-icon     { padding: 0.35rem 0.6rem; font-size: 1rem; line-height: 1; }
+
+    .action-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+
+    .order-row { display: flex; align-items: center; gap: 0.75rem; }
+    .order-row label { font-weight: 500; white-space: nowrap; }
+    #orderInput { width: 180px; }
+
+    #results { display: none; margin-top: 1.25rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+    th {
+      background: #f8fafc;
+      padding: 0.6rem 1rem;
+      text-align: left;
+      font-weight: 600;
+      border-bottom: 2px solid #e2e8f0;
+      color: #475569;
+    }
+    td { padding: 0.6rem 1rem; border-bottom: 1px solid #f1f5f9; }
+    tfoot td {
+      font-weight: 700;
+      background: #f8fafc;
+      border-top: 2px solid #e2e8f0;
+      border-bottom: none;
+    }
+
+    .msg { font-size: 0.875rem; margin-top: 0.6rem; min-height: 1.25rem; }
+    .msg.ok  { color: #16a34a; }
+    .msg.err { color: #dc2626; }
+  </style>
+</head>
+<body>
+<div class="page">
+  <h1>Pack Calculator</h1>
+  <p class="subtitle">Calculate the optimal pack combination for any order.</p>
+
+  <div class="card">
+    <h2>Pack Sizes</h2>
+    <ul id="sizeList"></ul>
+    <div class="action-row">
+      <button class="btn btn-ghost" onclick="addSizeRow()">+ Add size</button>
+      <button class="btn btn-success" onclick="saveSizes()">Save changes</button>
+    </div>
+    <p class="msg" id="sizesMsg"></p>
+  </div>
+
+  <div class="card">
+    <h2>Calculate Order</h2>
+    <div class="order-row">
+      <label for="orderInput">Items ordered:</label>
+      <input type="number" id="orderInput" min="1" placeholder="e.g. 501" />
+      <button class="btn btn-primary" onclick="calculate()">Calculate</button>
+    </div>
+    <p class="msg" id="calcMsg"></p>
+
+    <div id="results">
+      <table>
+        <thead>
+          <tr><th>Pack size</th><th>Quantity</th><th>Items</th></tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+        <tfoot id="resultsFoot"></tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  async function apiFetch(path, opts = {}) {
+    const res = await fetch(path, {
+      headers: { 'Content-Type': 'application/json' },
+      ...opts,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  }
+
+  async function loadSizes() {
+    try {
+      const data = await apiFetch('/api/packs');
+      renderSizeList(data.pack_sizes || []);
+    } catch (e) {
+      showMsg('sizesMsg', 'err', 'Failed to load pack sizes: ' + e.message);
+    }
+  }
+
+  function renderSizeList(sizes) {
+    const list = document.getElementById('sizeList');
+    list.innerHTML = '';
+    [...sizes].sort((a, b) => a - b).forEach(v => list.appendChild(makeSizeRow(v)));
+  }
+
+  function makeSizeRow(value = '') {
+    const li = document.createElement('li');
+    li.innerHTML =
+      `<input type="number" min="1" value="${value}" placeholder="Pack size" />` +
+      `<button class="btn btn-icon btn-ghost" title="Remove" onclick="this.closest('li').remove()">✕</button>`;
+    return li;
+  }
+
+  function addSizeRow() {
+    document.getElementById('sizeList').appendChild(makeSizeRow());
+  }
+
+  async function saveSizes() {
+    const inputs = document.querySelectorAll('#sizeList input[type=number]');
+    const sizes = [...inputs].map(i => parseInt(i.value, 10)).filter(n => n > 0);
+
+    if (sizes.length === 0) {
+      showMsg('sizesMsg', 'err', 'Add at least one valid pack size.');
+      return;
+    }
+    try {
+      const data = await apiFetch('/api/packs', {
+        method: 'PUT',
+        body: JSON.stringify({ pack_sizes: sizes }),
+      });
+      renderSizeList(data.pack_sizes);
+      showMsg('sizesMsg', 'ok', 'Pack sizes saved.');
+      setTimeout(() => clearMsg('sizesMsg'), 2500);
+    } catch (e) {
+      showMsg('sizesMsg', 'err', e.message);
+    }
+  }
+
+  async function calculate() {
+    const order = parseInt(document.getElementById('orderInput').value, 10);
+    if (!order || order < 1) {
+      showMsg('calcMsg', 'err', 'Enter a valid positive number of items.');
+      document.getElementById('results').style.display = 'none';
+      return;
+    }
+    clearMsg('calcMsg');
+    try {
+      const data = await apiFetch('/api/calculate', {
+        method: 'POST',
+        body: JSON.stringify({ order }),
+      });
+      renderResults(data);
+      document.getElementById('results').style.display = 'block';
+    } catch (e) {
+      showMsg('calcMsg', 'err', e.message);
+      document.getElementById('results').style.display = 'none';
+    }
+  }
+
+  function renderResults(data) {
+    const packs  = data.packs || {};
+    const sorted = Object.keys(packs).map(Number).sort((a, b) => b - a);
+
+    document.getElementById('resultsBody').innerHTML = sorted.map(size =>
+      `<tr>
+        <td>${size}</td>
+        <td>${packs[size]}</td>
+        <td>${size * packs[size]}</td>
+      </tr>`
+    ).join('');
+
+    document.getElementById('resultsFoot').innerHTML =
+      `<tr>
+        <td>Total</td>
+        <td>${data.total_packs} pack${data.total_packs !== 1 ? 's' : ''}</td>
+        <td>${data.total_items} items</td>
+      </tr>`;
+  }
+
+  function showMsg(id, type, text) {
+    const el = document.getElementById(id);
+    el.className = 'msg ' + type;
+    el.textContent = text;
+  }
+  function clearMsg(id) {
+    const el = document.getElementById(id);
+    el.className = 'msg';
+    el.textContent = '';
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('orderInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') calculate();
+    });
+    loadSizes();
+  });
+</script>
+</body>
+</html>

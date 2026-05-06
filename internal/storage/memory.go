@@ -9,18 +9,20 @@ import (
 
 var defaultPackSizes = []int{250, 500, 1000, 2000, 5000}
 
+// Memory is a thread-safe in-memory implementation of Storage.
 type Memory struct {
 	mu    sync.RWMutex
 	sizes []int
 }
 
+// NewMemory returns a store pre-loaded with the default pack sizes.
 func NewMemory() *Memory {
 	sizes := make([]int, len(defaultPackSizes))
 	copy(sizes, defaultPackSizes)
 	return &Memory{sizes: sizes}
 }
 
-// Returns a sorted copy, safe to mutate by the caller.
+// GetPackSizes returns a sorted copy of the current sizes.
 func (m *Memory) GetPackSizes() []int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -29,7 +31,7 @@ func (m *Memory) GetPackSizes() []int {
 	return out
 }
 
-// Validates and replaces all pack sizes atomically.
+// SetPackSizes replaces the current sizes after validating the input.
 func (m *Memory) SetPackSizes(sizes []int) error {
 	if len(sizes) == 0 {
 		return errors.New("at least one pack size is required")
