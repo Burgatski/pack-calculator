@@ -1,0 +1,13 @@
+# Version control
+.git
+.gitignore
+
+# IDE / editor artefacts
+.idea/
+.vscode/
+*.swp
+
+# Build artefacts that should not end up in the Docker build context
+pack-calculator
+coverage.out
+coverage.html
